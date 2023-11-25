@@ -13,10 +13,10 @@ type MySQLStrategy struct{}
 type BackupConfig struct {
 	Client    *DockerClient
 	Name      string
+	Strategy  BackupStrategy
 	User      string
 	Password  string
 	Container *types.Container
-	Strategy  BackupStrategy
 }
 type BackupStrategy interface {
 	GetDump(config *BackupConfig) (*string, error)
@@ -26,7 +26,8 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	timestamp := time.Now().Unix()
 	file := string(rune(timestamp)) + "_" + config.Name + ".sql"
 
-	err := config.Client.ExecInContainer(config.Container.ID, []string{"pg_dump", "-U", "postgres", "-f", file})
+	cmd := []string{"pg_dump", "-U", config.User, ">", file}
+	err := config.Client.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -35,17 +36,26 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 }
 
 func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
-	return nil, errors.New("not implemented")
+	timestamp := time.Now().Unix()
+	file := string(rune(timestamp)) + "_" + config.Name + ".sql"
+
+	cmd := []string{"mysqldump", "-u", config.User, "-p" + config.Password, ">", file}
+	err := config.Client.ExecInContainer(config.Container.ID, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &file, nil
 }
 
 func GetBackupStrategy(labels map[string]string) (BackupStrategy, error) {
-	label := labels["shbackup.type"]
+	strategy := labels["shbackup.strategy"]
 
-	if label == "postgres" {
+	if strategy == "postgres" {
 		return &PostgresStrategy{}, nil
 	}
 
-	if label == "mysql" {
+	if strategy == "mysql" {
 		return &MySQLStrategy{}, nil
 	}
 

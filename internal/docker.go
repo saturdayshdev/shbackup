@@ -12,12 +12,13 @@ type DockerClient struct {
 }
 
 func (c *DockerClient) ExecInContainer(id string, cmd []string) (*types.HijackedResponse, error) {
-	exec, err := c.Client.ContainerExecCreate(context.Background(), id, types.ExecConfig{Cmd: cmd})
+	ctx := context.Background()
+	exec, err := c.Client.ContainerExecCreate(ctx, id, types.ExecConfig{Cmd: cmd, Tty: false})
 	if err != nil {
 		return nil, err
 	}
 
-	attach, err := c.Client.ContainerExecAttach(context.Background(), exec.ID, types.ExecStartCheck{})
+	attach, err := c.Client.ContainerExecAttach(ctx, exec.ID, types.ExecStartCheck{})
 	if err != nil {
 		return nil, err
 	}

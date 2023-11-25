@@ -26,10 +26,9 @@ type BackupStrategy interface {
 }
 
 func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
-	timestamp := fmt.Sprint(time.Now().Unix())
-	file := string(timestamp) + "_" + config.Name + ".sql"
+	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
-	cmd := []string{"pg_dump", "-U", config.User, ">", file}
+	cmd := []string{"pg_dump", "-U", config.User, "-f", file}
 	attach, err := config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
@@ -39,18 +38,22 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer dest.Close()
 
-	defer attach.Close()
-	go io.Copy(dest, attach.Reader)
+	_, err = io.Copy(dest, attach.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	attach.Close()
 
 	return &file, nil
 }
 
 func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
-	timestamp := fmt.Sprint(time.Now().Unix())
-	file := string(timestamp) + "_" + config.Name + ".sql"
+	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
-	cmd := []string{"mysqldump", "-u", config.User, "-p" + config.Password, ">", file}
+	cmd := []string{"mysqldump", "-u", config.User, "-p" + config.Password, "-f", file}
 	attach, err := config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err

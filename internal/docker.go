@@ -11,18 +11,18 @@ type DockerClient struct {
 	Client *client.Client
 }
 
-func (c *DockerClient) ExecInContainer(id string, cmd []string) error {
+func (c *DockerClient) ExecInContainer(id string, cmd []string) (*types.HijackedResponse, error) {
 	exec, err := c.Client.ContainerExecCreate(context.Background(), id, types.ExecConfig{Cmd: cmd})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = c.Client.ContainerExecStart(context.Background(), exec.ID, types.ExecStartCheck{})
+	attach, err := c.Client.ContainerExecAttach(context.Background(), exec.ID, types.ExecStartCheck{})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &attach, nil
 }
 
 func CreateDockerClient() (*DockerClient, error) {

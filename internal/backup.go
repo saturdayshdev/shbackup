@@ -10,23 +10,31 @@ import (
 type PostgresStrategy struct{}
 type MySQLStrategy struct{}
 
+type BackupConfig struct {
+	Client    *DockerClient
+	Name      string
+	User      string
+	Password  string
+	Container *types.Container
+	Strategy  BackupStrategy
+}
 type BackupStrategy interface {
-	GetDump(name string, client *DockerClient, container *types.Container) (*string, error)
+	GetDump(config *BackupConfig) (*string, error)
 }
 
-func (s *PostgresStrategy) GetDump(name string, client *DockerClient, container *types.Container) (*string, error) {
+func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	timestamp := time.Now().Unix()
-	fileName := string(timestamp) + "_" + name + ".sql"
+	file := string(rune(timestamp)) + "_" + config.Name + ".sql"
 
-	err := client.ExecInContainer(container.ID, []string{"pg_dump", "-U", "postgres", "-f", fileName})
+	err := config.Client.ExecInContainer(config.Container.ID, []string{"pg_dump", "-U", "postgres", "-f", file})
 	if err != nil {
 		return nil, err
 	}
 
-	return &fileName, nil
+	return &file, nil
 }
 
-func (s *MySQLStrategy) GetDump(name string, client *DockerClient, container *types.Container) (*string, error) {
+func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -44,6 +52,6 @@ func GetBackupStrategy(labels map[string]string) (BackupStrategy, error) {
 	return nil, errors.New("unknown backup strategy")
 }
 
-func (c *DockerClient) BackupDatabase(name string, container *types.Container, strategy BackupStrategy) (*string, error) {
-	return strategy.GetDump(name, c, container)
+func (c *DockerClient) BackupDatabase(config *BackupConfig) (*string, error) {
+	return config.Strategy.GetDump(config)
 }

@@ -30,7 +30,7 @@ type BackupStrategy interface {
 func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
-	cmd := []string{"pg_dump", "-U", config.User, "-f", file}
+	cmd := []string{"pg_dump", "-U", config.User, "-W", config.Password, "-f", file}
 	err := config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
@@ -62,6 +62,12 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	defer dest.Close()
 
 	_, err = io.Copy(dest, tr)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd = []string{"rm", file}
+	err = config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +110,12 @@ func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
 	defer dest.Close()
 
 	_, err = io.Copy(dest, tr)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd = []string{"rm", file}
+	err = config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}

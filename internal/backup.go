@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"archive/tar"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -29,8 +31,27 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
 	cmd := []string{"pg_dump", "-U", config.User, "-f", file}
-	attach, err := config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err := config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
+		return nil, err
+	}
+
+	var stream io.ReadCloser
+	for i := 0; i < 10; i++ {
+		stream, _, err = config.Docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(1000 * time.Millisecond)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+
+	tr := tar.NewReader(stream)
+	if _, err := tr.Next(); err != nil {
 		return nil, err
 	}
 
@@ -40,12 +61,10 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	}
 	defer dest.Close()
 
-	_, err = io.Copy(dest, attach.Reader)
+	_, err = io.Copy(dest, tr)
 	if err != nil {
 		return nil, err
 	}
-
-	attach.Close()
 
 	return &file, nil
 }
@@ -54,8 +73,27 @@ func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
 	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
 	cmd := []string{"mysqldump", "-u", config.User, "-p" + config.Password, "-f", file}
-	attach, err := config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err := config.Docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
+		return nil, err
+	}
+
+	var stream io.ReadCloser
+	for i := 0; i < 10; i++ {
+		stream, _, err = config.Docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(1000 * time.Millisecond)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+
+	tr := tar.NewReader(stream)
+	if _, err := tr.Next(); err != nil {
 		return nil, err
 	}
 
@@ -63,9 +101,12 @@ func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer dest.Close()
 
-	defer attach.Close()
-	go io.Copy(dest, attach.Reader)
+	_, err = io.Copy(dest, tr)
+	if err != nil {
+		return nil, err
+	}
 
 	return &file, nil
 }

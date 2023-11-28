@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -16,7 +17,6 @@ type PostgresStrategy struct{}
 type MySQLStrategy struct{}
 
 type BackupConfig struct {
-	Docker    *DockerClient
 	Name      string
 	Strategy  BackupStrategy
 	User      string
@@ -24,21 +24,21 @@ type BackupConfig struct {
 	Container *types.Container
 }
 type BackupStrategy interface {
-	GetDump(config *BackupConfig) (*string, error)
+	GetDump(docker *DockerClient, config *BackupConfig) (*string, error)
 }
 
-func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
+func (s *PostgresStrategy) GetDump(docker *DockerClient, config *BackupConfig) (*string, error) {
 	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
 	cmd := []string{"pg_dump", "-U", config.User, "-W", config.Password, "-f", file}
-	err := config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err := docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	var stream io.ReadCloser
 	for i := 0; i < 10; i++ {
-		stream, _, err = config.Docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
+		stream, _, err = docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
 		if err == nil {
 			break
 		}
@@ -67,7 +67,7 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	}
 
 	cmd = []string{"rm", file}
-	err = config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err = docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -75,18 +75,18 @@ func (s *PostgresStrategy) GetDump(config *BackupConfig) (*string, error) {
 	return &file, nil
 }
 
-func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
+func (s *MySQLStrategy) GetDump(docker *DockerClient, config *BackupConfig) (*string, error) {
 	file := fmt.Sprint(time.Now().Unix()) + "_" + config.Name + ".sql"
 
 	cmd := []string{"mysqldump", "-u", config.User, "-p" + config.Password, "-f", file}
-	err := config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err := docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	var stream io.ReadCloser
 	for i := 0; i < 10; i++ {
-		stream, _, err = config.Docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
+		stream, _, err = docker.Client.CopyFromContainer(context.Background(), config.Container.ID, "/"+file)
 		if err == nil {
 			break
 		}
@@ -115,7 +115,7 @@ func (s *MySQLStrategy) GetDump(config *BackupConfig) (*string, error) {
 	}
 
 	cmd = []string{"rm", file}
-	err = config.Docker.ExecInContainer(config.Container.ID, cmd)
+	err = docker.ExecInContainer(config.Container.ID, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,9 @@ func GetBackupConfig(labels map[string]string, container *types.Container) (*Bac
 }
 
 func BackupDatabase(docker *DockerClient, storage *StorageClient, config *BackupConfig) error {
-	file, err := config.Strategy.GetDump(config)
+	log.Printf("Backing up %s database\n", config.Name)
+
+	file, err := config.Strategy.GetDump(docker, config)
 	if err != nil {
 		return err
 	}
@@ -188,6 +190,8 @@ func BackupDatabase(docker *DockerClient, storage *StorageClient, config *Backup
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Backup of %s database completed\n", config.Name)
 
 	return nil
 }

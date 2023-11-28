@@ -34,8 +34,7 @@ func main() {
 	c.AddFunc(os.Getenv("BACKUP_CRON"), func() {
 		containers, err := dockerClient.GetContainers()
 		if err != nil {
-			log.Println(err)
-			return
+			panic(err)
 		}
 
 		var wg sync.WaitGroup

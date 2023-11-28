@@ -5,11 +5,12 @@ import (
 	"os"
 
 	"github.com/robfig/cron/v3"
-	lib "github.com/saturdayshdev/shbackup/internal"
+	backup "github.com/saturdayshdev/shbackup/internal/backup"
+	docker "github.com/saturdayshdev/shbackup/internal/docker"
 )
 
 func main() {
-	storage, err := lib.CreateStorageClient(lib.StorageClientConfig{
+	storage, err := backup.CreateStorageClient(backup.StorageClientConfig{
 		BucketName:     os.Getenv("BUCKET_NAME"),
 		BucketLocation: os.Getenv("BUCKET_REGION"),
 		BucketClass:    os.Getenv("BUCKET_CLASS"),
@@ -23,7 +24,7 @@ func main() {
 		panic(err)
 	}
 
-	docker, err := lib.CreateDockerClient()
+	docker, err := docker.CreateClient()
 	if err != nil {
 		panic(err)
 	}
@@ -41,12 +42,12 @@ func main() {
 				continue
 			}
 
-			config, err := lib.GetBackupConfig(labels, &container)
+			config, err := backup.GetBackupConfig(labels, &container)
 			if err != nil {
 				log.Println(err)
 			}
 
-			err = lib.BackupDatabase(docker, storage, config)
+			err = backup.BackupDatabase(docker, storage, config)
 			if err != nil {
 				log.Println(err)
 			}

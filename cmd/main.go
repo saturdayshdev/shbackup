@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"sync"
 
 	"github.com/robfig/cron/v3"
 	backup "github.com/saturdayshdev/shbackup/internal/backup"
@@ -10,7 +11,7 @@ import (
 )
 
 func main() {
-	storage, err := backup.CreateStorageClient(backup.StorageClientConfig{
+	storageClient, err := backup.CreateStorageClient(backup.StorageClientConfig{
 		BucketName:     os.Getenv("BUCKET_NAME"),
 		BucketLocation: os.Getenv("BUCKET_REGION"),
 		BucketClass:    os.Getenv("BUCKET_CLASS"),
@@ -24,36 +25,36 @@ func main() {
 		panic(err)
 	}
 
-	docker, err := docker.CreateClient()
+	dockerClient, err := docker.CreateClient()
 	if err != nil {
 		panic(err)
 	}
 
 	c := cron.New()
 	c.AddFunc(os.Getenv("BACKUP_CRON"), func() {
-		containers, err := docker.GetContainers()
+		containers, err := dockerClient.GetContainers()
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
+		var wg sync.WaitGroup
 		for _, container := range containers {
-			labels := container.Labels
-			if labels["shbackup.enabled"] != "true" {
-				continue
-			}
+			wg.Add(1)
+			go func(container docker.Container) {
+				defer wg.Done()
 
-			config, err := backup.GetBackupConfig(&container)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+				config, err := backup.GetBackupConfig(&container)
+				if err != nil {
+					log.Println(err)
+					return
+				}
 
-			err = backup.BackupDatabase(docker, storage, config)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+				err = backup.BackupDatabase(dockerClient, storageClient, config)
+				if err != nil {
+					log.Println(err)
+				}
+			}(container)
 		}
 	})
 	c.Start()

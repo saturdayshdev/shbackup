@@ -17,7 +17,12 @@ type BackupConfig struct {
 	Container *docker.Container
 }
 
-func GetBackupConfig(labels map[string]string, container *docker.Container) (*BackupConfig, error) {
+func GetBackupConfig(container *docker.Container) (*BackupConfig, error) {
+	labels := container.Labels
+	if labels["shbackup.enabled"] != "true" {
+		return nil, errors.New("shbackup.enabled label not found")
+	}
+
 	name, ok := labels["shbackup.name"]
 	if !ok {
 		return nil, errors.New("shbackup.name label not found")

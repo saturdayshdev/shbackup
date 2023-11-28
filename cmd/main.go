@@ -34,6 +34,7 @@ func main() {
 		containers, err := docker.GetContainers()
 		if err != nil {
 			log.Println(err)
+			return
 		}
 
 		for _, container := range containers {
@@ -42,17 +43,20 @@ func main() {
 				continue
 			}
 
-			config, err := backup.GetBackupConfig(labels, &container)
+			config, err := backup.GetBackupConfig(&container)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 
 			err = backup.BackupDatabase(docker, storage, config)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 		}
 	})
 	c.Start()
+
 	select {}
 }

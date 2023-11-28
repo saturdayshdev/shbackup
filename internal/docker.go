@@ -26,6 +26,15 @@ func (c *DockerClient) ExecInContainer(id string, cmd []string) error {
 	return nil
 }
 
+func (c *DockerClient) GetContainers() ([]types.Container, error) {
+	containers, err := c.Client.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return containers, nil
+}
+
 func CreateDockerClient() (*DockerClient, error) {
 	client, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {

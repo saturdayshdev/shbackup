@@ -4,7 +4,7 @@ Service for automatic backups of databases to Google Cloud.
 
 ### Usage
 
-If you want a container to be backed-up by shDB, add the following labels:
+If you want a container to be backed-up by shBackup, add the following labels:
 
 ```yaml
 labels:
